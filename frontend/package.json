@@ -41,7 +41,9 @@
       "last 1 safari version"
     ]
   },
-  "devDependencies": {
-    "@types/react-dropzone": "^5.1.0"
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }
