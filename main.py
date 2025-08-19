@@ -9,6 +9,10 @@ from typing import List, Optional
 from pydantic import BaseModel
 from openai import OpenAI
 from dotenv import load_dotenv
+from playwright.async_api import async_playwright
+import asyncio
+import re
+import json
 
 load_dotenv()
 
@@ -30,10 +34,100 @@ app.add_middleware(
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+async def capture_screenshot(url: str) -> str:
+    """
+    Capture a screenshot of the given URL and return it as base64 string
+    """
+    try:
+        # Ensure URL has protocol
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+        
+        async with async_playwright() as p:
+            # Launch browser in headless mode
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            
+            # Set viewport size for consistent screenshots
+            await page.set_viewport_size({"width": 1200, "height": 800})
+            
+            # Navigate to URL with timeout
+            await page.goto(url, wait_until="networkidle", timeout=30000)
+            
+            # Wait a bit for dynamic content to load
+            await page.wait_for_timeout(2000)
+            
+            # Take full page screenshot
+            screenshot_bytes = await page.screenshot(full_page=True, type='png')
+            
+            # Close browser
+            await browser.close()
+            
+            # Convert to base64
+            screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+            return screenshot_base64
+            
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to capture screenshot: {str(e)}")
+
+def extract_json_from_response(text: str) -> dict:
+    """Extract JSON from AI response, handling markdown code blocks and extra text"""
+    # Remove markdown code blocks if present
+    json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+    if json_match:
+        json_text = json_match.group(1)
+    else:
+        # Try to find JSON object directly
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if json_match:
+            json_text = json_match.group(0)
+        else:
+            raise ValueError("No JSON found in response")
+    
+    try:
+        return json.loads(json_text)
+    except json.JSONDecodeError as e:
+        # If parsing fails, try to clean up common issues
+        json_text = re.sub(r',\s*}', '}', json_text)  # Remove trailing commas
+        json_text = re.sub(r',\s*]', ']', json_text)  # Remove trailing commas in arrays
+        return json.loads(json_text)
+
+async def analyze_image_base64(image_base64: str) -> DesignAnalysisResponse:
+    """Core analysis function that works with base64 image data"""
+    try:
+        # Create analysis prompt
+        prompt = create_heuristic_prompt()
+        
+        # Get AI analysis
+        ai_response = await analyze_design_with_ai(image_base64, prompt)
+        
+        # Parse JSON response with robust extraction
+        try:
+            analysis_data = extract_json_from_response(ai_response)
+            return DesignAnalysisResponse(**analysis_data)
+        except (json.JSONDecodeError, ValueError) as e:
+            # Fallback response if parsing fails
+            return DesignAnalysisResponse(
+                overall_score=75.0,
+                heuristic_scores={key: 7.5 for key in UX_HEURISTICS.keys()},
+                heuristic_reasoning={key: "Analysis parsing failed - generic score provided" for key in UX_HEURISTICS.keys()},
+                recommendations=[f"JSON parsing failed: {str(e)}", "The AI provided an analysis but in an unexpected format"],
+                strengths=["AI response received but parsing failed"],
+                areas_for_improvement=["Please try uploading the image again"],
+                summary="Analysis completed but detailed parsing failed - check server logs"
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
 class DesignAnalysisRequest(BaseModel):
     image_data: str
     analysis_type: str = "heuristic"  # "heuristic" or "comparison"
     comparison_image: Optional[str] = None
+
+class URLAnalysisRequest(BaseModel):
+    url: str
+    analysis_type: str = "heuristic"  # "heuristic" or "comparison"
+    comparison_url: Optional[str] = None
 
 class DesignAnalysisResponse(BaseModel):
     overall_score: float
@@ -452,6 +546,68 @@ async def compare_designs(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Comparison failed: {str(e)}")
+
+@app.post("/analyze-url", response_model=DesignAnalysisResponse)
+async def analyze_url(request: URLAnalysisRequest):
+    """Analyze design from a URL by taking a screenshot"""
+    try:
+        # Capture screenshot of the URL
+        screenshot_base64 = await capture_screenshot(request.url)
+        
+        # Create a design analysis request with the screenshot
+        analysis_request = DesignAnalysisRequest(
+            image_data=screenshot_base64,
+            analysis_type="heuristic"
+        )
+        
+        # Use core analysis function
+        return await analyze_image_base64(screenshot_base64)
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"URL analysis failed: {str(e)}")
+
+@app.post("/compare-urls", response_model=ComparisonResponse)
+async def compare_urls(request: URLAnalysisRequest):
+    """Compare two designs from URLs by taking screenshots"""
+    try:
+        if not request.comparison_url:
+            raise HTTPException(status_code=400, detail="comparison_url is required for URL comparison")
+        
+        # Capture screenshots of both URLs
+        screenshot_a = await capture_screenshot(request.url)
+        screenshot_b = await capture_screenshot(request.comparison_url)
+        
+        # Perform analysis on both designs
+        analysis_a = await analyze_image_base64(screenshot_a)
+        analysis_b = await analyze_image_base64(screenshot_b)
+        
+        # Determine winner based on overall scores
+        winner = "Design A" if analysis_a.overall_score > analysis_b.overall_score else "Design B"
+        score_a = analysis_a.overall_score
+        score_b = analysis_b.overall_score
+        
+        # Generate comparison reasoning
+        reasoning = f"{winner} performs better with a score of {max(score_a, score_b):.1f} compared to {min(score_a, score_b):.1f}. "
+        
+        # Create recommendations based on both analyses
+        recommendations = []
+        recommendations.extend(analysis_a.recommendations[:2])
+        recommendations.extend(analysis_b.recommendations[:2])
+        
+        comparison_result = {
+            "winner": winner,
+            "reasoning": reasoning,
+            "design_a_score": float(score_a),
+            "design_b_score": float(score_b),
+            "recommendations": recommendations[:4],
+            "design_a_analysis": analysis_a.dict(),
+            "design_b_analysis": analysis_b.dict()
+        }
+        
+        return ComparisonResponse(**comparison_result)
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"URL comparison failed: {str(e)}")
 
 @app.get("/health")
 async def health_check():
