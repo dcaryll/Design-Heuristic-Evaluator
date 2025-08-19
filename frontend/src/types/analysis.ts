@@ -79,6 +79,29 @@ export const HEURISTIC_LABELS: Record<keyof HeuristicScores, string> = {
   interaction_feedback: 'Interaction & Feedback'
 };
 
+// Source documentation links for each heuristic
+export const HEURISTIC_SOURCES: Record<keyof HeuristicScores, string> = {
+  // Nielsen's 10 Usability Heuristics - Nielsen Norman Group
+  visibility_of_system_status: 'https://www.nngroup.com/articles/visibility-system-status/',
+  match_system_real_world: 'https://www.nngroup.com/articles/match-system-real-world/',
+  user_control_freedom: 'https://www.nngroup.com/articles/user-control-and-freedom/',
+  consistency_standards: 'https://www.nngroup.com/articles/consistency-and-standards/',
+  error_prevention: 'https://www.nngroup.com/articles/preventing-user-errors/',
+  recognition_rather_than_recall: 'https://www.nngroup.com/articles/recognition-and-recall/',
+  flexibility_efficiency: 'https://www.nngroup.com/articles/flexibility-efficiency-heuristic/',
+  aesthetic_minimalist_design: 'https://www.nngroup.com/articles/aesthetic-and-minimalist-design/',
+  error_recovery: 'https://www.nngroup.com/articles/error-message-guidelines/',
+  help_documentation: 'https://www.nngroup.com/articles/help-and-documentation/',
+  
+  // Design System Heuristics - Red Hat Design System
+  color_accessibility_usage: 'https://ux.redhat.com/foundations/color/',
+  typography_hierarchy: 'https://ux.redhat.com/foundations/typography/',
+  design_token_consistency: 'https://ux.redhat.com/tokens/',
+  brand_voice_expression: 'https://www.redhat.com/en/about/brand/',
+  responsive_adaptability: 'https://ux.redhat.com/foundations/grid/',
+  interaction_feedback: 'https://ux.redhat.com/foundations/interactions/'
+};
+
 export const HEURISTIC_DESCRIPTIONS: Record<keyof HeuristicScores, string> = {
   // Nielsen's Classic Usability Heuristics
   visibility_of_system_status: 'The system should keep users informed about what is happening through appropriate feedback within reasonable time.',

@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { ComparisonAnalysis, HeuristicScores, HEURISTIC_LABELS } from '../types/analysis';
-import { Trophy, Target, TrendingUp, AlertCircle, Crown, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { ComparisonAnalysis, HeuristicScores, UploadedImage, HEURISTIC_LABELS, HEURISTIC_SOURCES } from '../types/analysis';
+import RhIcon from './RhIcon';
+import { getRedHatIcon } from '../utils/iconMapping';
+import { generateComparisonPDF, downloadPDF, sharePDF } from '../utils/pdfGenerator';
 
 interface ComparisonResultProps {
   comparison: ComparisonAnalysis;
+  images?: UploadedImage[];
 }
 
 interface DesignAnalysisCardProps {
@@ -24,23 +27,46 @@ const DesignAnalysisCard: React.FC<DesignAnalysisCardProps> = ({ title, analysis
   const [expandedHeuristic, setExpandedHeuristic] = useState<string | null>(null);
 
   const getScoreColor = (score: number) => {
-    if (score >= 8) return 'text-green-600';
-    if (score >= 6) return 'text-yellow-600';
-    return 'text-red-600';
+    if (score >= 8) return 'text-rh-status-success';
+    if (score >= 6) return 'text-rh-yellow-50';
+    return 'text-rh-status-danger';
   };
 
   const getScoreBgColor = (score: number) => {
-    if (score >= 8) return 'bg-green-100';
-    if (score >= 6) return 'bg-yellow-100';
-    return 'bg-red-100';
+    if (score >= 8) return 'bg-rh-status-success/20';
+    if (score >= 6) return 'bg-rh-status-warning/20';
+    return 'bg-rh-status-danger/20';
+  };
+
+  const getAnalysisBgColor = (score: number) => {
+    if (score >= 8) return 'bg-rh-status-success/10';
+    if (score >= 6) return 'bg-rh-status-warning/10';
+    return 'bg-rh-status-danger/10';
+  };
+
+  const getAnalysisBorderColor = (score: number) => {
+    if (score >= 8) return 'border-rh-status-success/30';
+    if (score >= 6) return 'border-rh-status-warning/30';
+    return 'border-rh-status-danger/30';
+  };
+
+  const getAnalysisTextColor = (score: number) => {
+    if (score >= 8) return 'text-rh-status-success';
+    if (score >= 6) return 'text-rh-yellow-50';
+    return 'text-rh-status-danger';
   };
 
   return (
-    <div className={`border-2 rounded-lg p-6 ${isWinner ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+    <div className={`border-2 rounded-lg p-6 ${isWinner ? 'border-rh-status-success bg-rh-status-success/10' : 'border-gray-200'}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h4 className="text-xl font-semibold text-gray-900">{title}</h4>
-        {isWinner && <Trophy className="h-5 w-5 text-yellow-500" />}
+        <h4 className="text-xl font-semibold text-gray-900 font-heading">{title}</h4>
+        {isWinner && <RhIcon 
+          icon={getRedHatIcon('Trophy')} 
+          size="small" 
+                        className="text-rh-yellow-50" 
+          accessibleLabel="Winner"
+        />}
       </div>
 
       {/* Overall Score */}
@@ -57,8 +83,16 @@ const DesignAnalysisCard: React.FC<DesignAnalysisCardProps> = ({ title, analysis
         >
           <span className="font-medium">Heuristic Scores</span>
           {expandedSection === 'heuristics' ? 
-            <ChevronUp className="h-4 w-4" /> : 
-            <ChevronDown className="h-4 w-4" />
+            <RhIcon 
+          icon={getRedHatIcon('ChevronUp')} 
+          size="small" 
+          accessibleLabel="Collapse"
+        /> : 
+            <RhIcon 
+          icon={getRedHatIcon('ChevronDown')} 
+          size="small" 
+          accessibleLabel="Expand"
+        />
           }
         </button>
         
@@ -72,23 +106,51 @@ const DesignAnalysisCard: React.FC<DesignAnalysisCardProps> = ({ title, analysis
                 >
                   <span className="flex-1 text-left">{HEURISTIC_LABELS[key as keyof typeof HEURISTIC_LABELS] || key}</span>
                   <div className="flex items-center ml-2">
-                    <div className={`w-8 h-8 rounded ${getScoreBgColor(score)} flex items-center justify-center mr-2`}>
+                    <div className={`w-8 h-8 rounded-lg ${getScoreBgColor(score)} border ${getAnalysisBorderColor(score)} shadow-sm flex items-center justify-center mr-2`}>
                       <span className={`text-xs font-bold ${getScoreColor(score)}`}>
                         {score.toFixed(1)}
                       </span>
                     </div>
                     {expandedHeuristic === key ? 
-                      <ChevronUp className="h-3 w-3 text-gray-400" /> : 
-                      <ChevronDown className="h-3 w-3 text-gray-400" />
+                      <RhIcon 
+            icon={getRedHatIcon('ChevronUp')} 
+            size="small" 
+            className="text-gray-400" 
+            accessibleLabel="Collapse"
+          /> : 
+                      <RhIcon 
+            icon={getRedHatIcon('ChevronDown')} 
+            size="small" 
+            className="text-gray-400" 
+            accessibleLabel="Expand"
+          />
                     }
                   </div>
                 </button>
                 
                 {expandedHeuristic === key && analysis.heuristic_reasoning && analysis.heuristic_reasoning[key] && (
-                  <div className="px-2 pb-2 border-t border-gray-200 bg-blue-50">
-                    <p className="text-xs text-blue-800 leading-relaxed mt-2">
-                      {analysis.heuristic_reasoning[key]}
-                    </p>
+                  <div className="px-2 pb-2 border-t border-gray-200 bg-rh-surface-lightest">
+                    <div className={`p-4 mt-2 ${getAnalysisBgColor(score)} border-2 ${getAnalysisBorderColor(score)} rounded-lg shadow-sm`}>
+                      <div className="flex items-start justify-between">
+                        <p className={`text-xs font-bold ${getAnalysisTextColor(score)} leading-relaxed flex-1`}>
+                          {analysis.heuristic_reasoning[key]}
+                        </p>
+                        <a 
+                          href={HEURISTIC_SOURCES[key as keyof typeof HEURISTIC_SOURCES]}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-rh-accent-base hover:text-rh-interactive-blue-hover text-xs font-medium transition-colors flex items-center ml-2 flex-shrink-0"
+                        >
+                          Read about this heuristic
+                          <RhIcon 
+                            icon="arrow-up-right" 
+                            size="small" 
+                            className="ml-1" 
+                            accessibleLabel="Opens in new tab"
+                          />
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -100,13 +162,18 @@ const DesignAnalysisCard: React.FC<DesignAnalysisCardProps> = ({ title, analysis
       {/* Strengths */}
       <div className="mb-4">
         <div className="flex items-center mb-2">
-          <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
-          <span className="font-medium text-green-800">Strengths</span>
+                      <RhIcon 
+              icon={getRedHatIcon('CheckCircle')} 
+              size="small" 
+              className="text-rh-status-success mr-2" 
+              accessibleLabel="Strength"
+            />
+                      <span className="font-medium text-rh-status-success">Strengths</span>
         </div>
         <ul className="space-y-1">
           {analysis.strengths.slice(0, 3).map((strength, index) => (
             <li key={index} className="text-sm text-gray-700 flex items-start">
-              <div className="w-1 h-1 bg-green-500 rounded-full mt-2 mr-2 flex-shrink-0" />
+              <div className="w-1 h-1 bg-rh-status-success rounded-full mt-2 mr-2 flex-shrink-0" />
               {strength}
             </li>
           ))}
@@ -116,13 +183,18 @@ const DesignAnalysisCard: React.FC<DesignAnalysisCardProps> = ({ title, analysis
       {/* Areas for Improvement */}
       <div className="mb-4">
         <div className="flex items-center mb-2">
-          <TrendingUp className="h-4 w-4 text-yellow-600 mr-2" />
-          <span className="font-medium text-yellow-800">Areas for Improvement</span>
+                      <RhIcon 
+              icon={getRedHatIcon('TrendingUp')} 
+              size="small" 
+              className="text-rh-yellow-50 mr-2" 
+              accessibleLabel="Improvement area"
+            />
+                        <span className="font-medium text-rh-yellow-50">Areas for improvement</span>
         </div>
         <ul className="space-y-1">
           {analysis.areas_for_improvement.slice(0, 3).map((area, index) => (
             <li key={index} className="text-sm text-gray-700 flex items-start">
-              <div className="w-1 h-1 bg-yellow-500 rounded-full mt-2 mr-2 flex-shrink-0" />
+              <div className="w-1 h-1 bg-rh-status-warning rounded-full mt-2 mr-2 flex-shrink-0" />
               {area}
             </li>
           ))}
@@ -137,30 +209,72 @@ const DesignAnalysisCard: React.FC<DesignAnalysisCardProps> = ({ title, analysis
   );
 };
 
-const ComparisonResult: React.FC<ComparisonResultProps> = ({ comparison }) => {
+const ComparisonResult: React.FC<ComparisonResultProps> = ({ comparison, images }) => {
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
   const getWinnerDisplay = () => {
     switch (comparison.winner) {
       case 'design_a':
-        return { label: 'Design A', color: 'text-green-600', bgColor: 'bg-green-100' };
+        return { label: 'Design A', color: 'text-rh-status-success', bgColor: 'bg-rh-status-success/20' };
       case 'design_b':
-        return { label: 'Design B', color: 'text-blue-600', bgColor: 'bg-blue-100' };
+        return { label: 'Design B', color: 'text-rh-accent-base', bgColor: 'bg-rh-surface-lighter' };
       default:
-        return { label: 'Tie', color: 'text-purple-600', bgColor: 'bg-purple-100' };
+        return { label: 'Tie', color: 'text-rh-text-primary', bgColor: 'bg-rh-surface-lighter' };
     }
   };
 
   const winner = getWinnerDisplay();
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-yellow-600';
-    return 'text-red-600';
+    if (score >= 80) return 'text-rh-status-success';
+    if (score >= 60) return 'text-rh-yellow-50';
+    return 'text-rh-status-danger';
   };
 
   const getScoreBgColor = (score: number) => {
-    if (score >= 80) return 'bg-green-50 border-green-200';
-    if (score >= 60) return 'bg-yellow-50 border-yellow-200';
-    return 'bg-red-50 border-red-200';
+    if (score >= 80) return 'bg-rh-status-success/10 border-rh-status-success/30';
+    if (score >= 60) return 'bg-rh-status-warning/10 border-rh-status-warning/30';
+    return 'bg-rh-status-danger/10 border-rh-status-danger/30';
+  };
+
+  const handleDownloadPDF = async () => {
+    setIsGeneratingPDF(true);
+    try {
+      const pdfBlob = await generateComparisonPDF(comparison, {
+        title: 'Design Comparison Analysis',
+        subtitle: `Generated on ${new Date().toLocaleDateString()}`,
+        images: images
+      });
+      const filename = `design-comparison-${Date.now()}.pdf`;
+      downloadPDF(pdfBlob, filename);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  const handleSharePDF = async () => {
+    setIsGeneratingPDF(true);
+    try {
+      const pdfBlob = await generateComparisonPDF(comparison, {
+        title: 'Design Comparison Analysis',
+        subtitle: `Generated on ${new Date().toLocaleDateString()}`,
+        images: images
+      });
+      const filename = `design-comparison-${Date.now()}.pdf`;
+      const shared = await sharePDF(pdfBlob, filename, 'Design Comparison Analysis');
+      if (!shared) {
+        // Fallback message if sharing wasn't supported
+        console.log('PDF downloaded as sharing is not supported on this device');
+      }
+    } catch (error) {
+      console.error('Error sharing PDF:', error);
+      alert('Failed to share PDF. Please try again.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
   };
 
   return (
@@ -170,13 +284,23 @@ const ComparisonResult: React.FC<ComparisonResultProps> = ({ comparison }) => {
         <div className="flex items-center justify-center mb-6">
           <div className={`p-3 rounded-full ${winner.bgColor} mr-4`}>
             {comparison.winner === 'tie' ? (
-              <Target className={`h-8 w-8 ${winner.color}`} />
+              <RhIcon 
+              icon={getRedHatIcon('Target')} 
+              size="large" 
+              className={winner.color} 
+              accessibleLabel="Target"
+            />
             ) : (
-              <Crown className={`h-8 w-8 ${winner.color}`} />
+              <RhIcon 
+              icon={getRedHatIcon('Crown')} 
+              size="large" 
+              className={winner.color} 
+              accessibleLabel="Winner"
+            />
             )}
           </div>
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2 font-heading">
               {comparison.winner === 'tie' ? 'It\'s a Tie!' : `${winner.label} Wins!`}
             </h2>
             <p className="text-lg text-gray-600">
@@ -186,16 +310,47 @@ const ComparisonResult: React.FC<ComparisonResultProps> = ({ comparison }) => {
             </p>
           </div>
         </div>
+        
+        {/* PDF Export Actions */}
+        <div className="flex flex-wrap gap-3 justify-center mt-6">
+          <button
+            onClick={handleDownloadPDF}
+            disabled={isGeneratingPDF}
+            className="inline-flex items-center px-4 py-2 bg-rh-accent-base text-white rounded-lg hover:bg-rh-interactive-blue-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RhIcon 
+              icon="download"
+              size="small"
+              className="mr-2"
+              accessibleLabel="Download"
+            />
+            {isGeneratingPDF ? 'Generating...' : 'Download PDF'}
+          </button>
+          
+          <button
+            onClick={handleSharePDF}
+            disabled={isGeneratingPDF}
+            className="inline-flex items-center px-4 py-2 bg-rh-surface-lighter text-rh-text-primary border border-rh-accent-base rounded-lg hover:bg-rh-surface-lightest transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RhIcon 
+              icon="share"
+              size="small"
+              className="mr-2"
+              accessibleLabel="Share"
+            />
+            {isGeneratingPDF ? 'Generating...' : 'Share PDF'}
+          </button>
+        </div>
       </div>
 
       {/* Score Comparison */}
       <div className="bg-white rounded-xl shadow-lg p-8">
-        <h3 className="text-2xl font-semibold text-gray-900 mb-6 text-center">Score Comparison</h3>
+        <h3 className="text-2xl font-semibold text-gray-900 mb-6 text-center font-heading">Score Comparison</h3>
         <div className="grid md:grid-cols-2 gap-6">
           {/* Design A Score */}
-          <div className={`p-6 rounded-xl border-2 ${getScoreBgColor(comparison.design_a_score)} ${comparison.winner === 'design_a' ? 'ring-2 ring-green-500 ring-opacity-50' : ''}`}>
+          <div className={`p-6 rounded-xl border-2 ${getScoreBgColor(comparison.design_a_score)} shadow-lg ${comparison.winner === 'design_a' ? 'ring-2 ring-rh-status-success ring-opacity-50' : ''}`}>
             <div className="text-center">
-              <h4 className="text-xl font-semibold text-gray-900 mb-2">Design A</h4>
+              <h4 className="text-xl font-semibold text-gray-900 mb-2 font-heading">Design A</h4>
               <div className="text-4xl font-bold mb-2">
                 <span className={getScoreColor(comparison.design_a_score)}>
                   {comparison.design_a_score.toFixed(0)}
@@ -204,17 +359,22 @@ const ComparisonResult: React.FC<ComparisonResultProps> = ({ comparison }) => {
               </div>
               {comparison.winner === 'design_a' && (
                 <div className="flex items-center justify-center">
-                  <Trophy className="h-5 w-5 text-yellow-500 mr-2" />
-                  <span className="text-green-600 font-medium">Winner</span>
+                  <RhIcon 
+              icon={getRedHatIcon('Trophy')} 
+              size="small" 
+              className="text-rh-yellow-50 mr-2" 
+              accessibleLabel="Winner"
+            />
+                  <span className="text-rh-status-success font-medium">Winner</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Design B Score */}
-          <div className={`p-6 rounded-xl border-2 ${getScoreBgColor(comparison.design_b_score)} ${comparison.winner === 'design_b' ? 'ring-2 ring-blue-500 ring-opacity-50' : ''}`}>
+          <div className={`p-6 rounded-xl border-2 ${getScoreBgColor(comparison.design_b_score)} shadow-lg ${comparison.winner === 'design_b' ? 'ring-2 ring-rh-accent-base ring-opacity-50' : ''}`}>
             <div className="text-center">
-              <h4 className="text-xl font-semibold text-gray-900 mb-2">Design B</h4>
+              <h4 className="text-xl font-semibold text-gray-900 mb-2 font-heading">Design B</h4>
               <div className="text-4xl font-bold mb-2">
                 <span className={getScoreColor(comparison.design_b_score)}>
                   {comparison.design_b_score.toFixed(0)}
@@ -223,8 +383,13 @@ const ComparisonResult: React.FC<ComparisonResultProps> = ({ comparison }) => {
               </div>
               {comparison.winner === 'design_b' && (
                 <div className="flex items-center justify-center">
-                  <Trophy className="h-5 w-5 text-yellow-500 mr-2" />
-                  <span className="text-blue-600 font-medium">Winner</span>
+                  <RhIcon 
+              icon={getRedHatIcon('Trophy')} 
+              size="small" 
+              className="text-rh-yellow-50 mr-2" 
+              accessibleLabel="Winner"
+            />
+                  <span className="text-rh-accent-base font-medium">Winner</span>
                 </div>
               )}
             </div>
@@ -234,7 +399,12 @@ const ComparisonResult: React.FC<ComparisonResultProps> = ({ comparison }) => {
         {/* Score Difference */}
         <div className="mt-6 text-center">
           <div className="inline-flex items-center bg-gray-100 rounded-full px-4 py-2">
-            <TrendingUp className="h-4 w-4 text-gray-600 mr-2" />
+            <RhIcon 
+            icon={getRedHatIcon('TrendingUp')} 
+            size="small" 
+            className="text-gray-600 mr-2" 
+            accessibleLabel="Analysis"
+          />
             <span className="text-sm text-gray-700">
               Score difference: {Math.abs(comparison.design_a_score - comparison.design_b_score).toFixed(1)} points
             </span>
@@ -245,8 +415,13 @@ const ComparisonResult: React.FC<ComparisonResultProps> = ({ comparison }) => {
       {/* Reasoning */}
       <div className="bg-white rounded-xl shadow-lg p-8">
         <div className="flex items-center mb-6">
-          <AlertCircle className="h-6 w-6 text-indigo-600 mr-3" />
-          <h3 className="text-2xl font-semibold text-gray-900">Analysis & Reasoning</h3>
+          <RhIcon 
+          icon={getRedHatIcon('AlertCircle')} 
+          size="medium" 
+          className="text-rh-accent-base mr-3" 
+          accessibleLabel="Analysis and reasoning"
+        />
+          <h3 className="text-2xl font-semibold text-gray-900 font-heading">Analysis & reasoning</h3>
         </div>
         <div className="prose max-w-none">
           <p className="text-gray-700 leading-relaxed text-lg">
@@ -258,7 +433,7 @@ const ComparisonResult: React.FC<ComparisonResultProps> = ({ comparison }) => {
       {/* Detailed Analysis Breakdown */}
       {(comparison.design_a_analysis || comparison.design_b_analysis) && (
         <div className="bg-white rounded-xl shadow-lg p-8">
-          <h3 className="text-2xl font-semibold text-gray-900 mb-6">Detailed Analysis Breakdown</h3>
+          <h3 className="text-2xl font-semibold text-gray-900 mb-6 font-heading">Detailed analysis breakdown</h3>
           <div className="grid md:grid-cols-2 gap-8">
             {/* Design A Analysis */}
             {comparison.design_a_analysis && (
@@ -286,14 +461,19 @@ const ComparisonResult: React.FC<ComparisonResultProps> = ({ comparison }) => {
       {/* Recommendations */}
       <div className="bg-white rounded-xl shadow-lg p-8">
         <div className="flex items-center mb-6">
-          <Target className="h-6 w-6 text-green-600 mr-3" />
-          <h3 className="text-2xl font-semibold text-gray-900">Recommendations</h3>
+          <RhIcon 
+          icon={getRedHatIcon('Target')} 
+          size="medium" 
+          className="text-rh-status-success mr-3" 
+          accessibleLabel="Recommendations"
+        />
+          <h3 className="text-2xl font-semibold text-gray-900 font-heading">Recommendations</h3>
         </div>
         <div className="space-y-4">
           {comparison.recommendations.map((recommendation, index) => (
-            <div key={index} className="border-l-4 border-green-500 pl-4 py-2">
+            <div key={index} className="border-l-4 border-rh-status-success pl-4 py-2">
               <div className="flex items-start">
-                <div className="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full mr-4 flex-shrink-0">
+                <div className="bg-rh-status-success/20 text-rh-status-success text-sm font-medium px-3 py-1 rounded-full mr-4 flex-shrink-0">
                   {index + 1}
                 </div>
                 <p className="text-gray-700 leading-relaxed">{recommendation}</p>
@@ -304,9 +484,9 @@ const ComparisonResult: React.FC<ComparisonResultProps> = ({ comparison }) => {
       </div>
 
       {/* Next Steps */}
-      <div className="bg-indigo-50 rounded-xl p-6 border border-indigo-200">
-        <h4 className="font-semibold text-indigo-900 mb-3">Next Steps</h4>
-        <div className="space-y-2 text-indigo-800 text-sm">
+      <div className="bg-rh-surface-lighter rounded-xl p-6 border border-rh-accent-base">
+        <h4 className="font-semibold text-rh-text-primary mb-3">Next Steps</h4>
+        <div className="space-y-2 text-rh-text-secondary text-sm">
           <p>• Focus on improving the {comparison.winner === 'tie' ? 'shared weaknesses' : 'losing design'} based on the recommendations above</p>
           <p>• Consider A/B testing with real users to validate these findings</p>
           <p>• Iterate on the {comparison.winner === 'tie' ? 'both designs' : 'winning design'} to further enhance user experience</p>

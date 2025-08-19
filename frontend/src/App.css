@@ -2,6 +2,51 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
+/* Red Hat Design System Color Tokens */
+:root {
+  /* Brand Colors */
+  --rh-color-brand-red: #ee0000;
+  --rh-color-brand-red-on-light: #ee0000;
+  --rh-color-brand-red-on-dark: #ee0000;
+  
+  /* Accent Colors */
+  --rh-color-accent-base: #0066cc;
+  --rh-color-accent-brand: #ee0000;
+  --rh-color-accent-base-on-light: #0066cc;
+  --rh-color-accent-base-on-dark: #92c5f9;
+  --rh-color-accent-brand-on-light: #ee0000;
+  --rh-color-accent-brand-on-dark: #ee0000;
+  
+  /* Text Colors */
+  --rh-color-text-primary: #151515;
+  --rh-color-text-secondary: #6a6e73;
+  --rh-color-text-primary-on-light: #151515;
+  --rh-color-text-primary-on-dark: #ffffff;
+  --rh-color-text-secondary-on-light: #6a6e73;
+  --rh-color-text-secondary-on-dark: #c7c7c7;
+  
+  /* Surface Colors */
+  --rh-color-surface-lightest: #ffffff;
+  --rh-color-surface-lighter: #f2f2f2;
+  --rh-color-surface-dark: #1f1f1f;
+  --rh-color-surface-darkest: #151515;
+  
+  /* Status Colors */
+  --rh-color-status-success: #3e8635;
+  --rh-color-status-warning: #f0ab00;
+  --rh-color-status-danger: #c9190b;
+  --rh-color-status-info: #0066cc;
+  
+  /* Yellow Color Token */
+  --rh-color-yellow-50: #ca6c0f;
+  
+  /* Interactive Colors */
+  --rh-color-interactive-blue-default: #0066cc;
+  --rh-color-interactive-blue-hover: #004080;
+  --rh-color-interactive-blue-focus: #0080ff;
+  --rh-color-interactive-blue-visited: #6753ac;
+}
+
 .container {
   @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
 }

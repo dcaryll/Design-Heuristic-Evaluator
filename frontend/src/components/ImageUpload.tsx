@@ -1,13 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
-import { Upload, X, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import RhIcon from './RhIcon';
+import { getRedHatIcon } from '../utils/iconMapping';
 import { DesignAnalysis, ComparisonAnalysis, UploadedImage } from '../types/analysis';
 
 interface ImageUploadProps {
   mode: 'single' | 'comparison';
-  onAnalysisComplete: (result: DesignAnalysis) => void;
-  onComparisonComplete: (result: ComparisonAnalysis) => void;
+  onAnalysisComplete: (result: DesignAnalysis, images: UploadedImage[]) => void;
+  onComparisonComplete: (result: ComparisonAnalysis, images: UploadedImage[]) => void;
   onAnalysisStart: () => void;
   isAnalyzing: boolean;
 }
@@ -89,7 +90,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
           timeout: 60000, // 60 second timeout
         });
 
-        onAnalysisComplete(response.data);
+        onAnalysisComplete(response.data, images);
       } else {
         const formData = new FormData();
         formData.append('design_a', images[0].file);
@@ -102,7 +103,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
           timeout: 60000, // 60 second timeout
         });
 
-        onComparisonComplete(response.data);
+        onComparisonComplete(response.data, images);
       }
     } catch (err: any) {
       let errorMessage = 'Analysis failed. Please try again.';
@@ -130,21 +131,26 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
           {...getRootProps()}
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200 ${
             isDragActive
-              ? 'border-indigo-500 bg-indigo-50'
-              : 'border-gray-300 hover:border-indigo-400 hover:bg-gray-50'
+              ? 'border-rh-accent-base bg-rh-surface-lighter'
+              : 'border-gray-300 hover:border-rh-interactive-blue-hover hover:bg-gray-50'
           }`}
         >
           <input {...getInputProps()} />
-          <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            {mode === 'single' ? 'Upload Your Design' : `Upload Design ${images.length + 1}`}
+                      <RhIcon 
+              icon={getRedHatIcon('Upload')} 
+              size="large" 
+              className="text-gray-400 mx-auto mb-4" 
+              accessibleLabel="Upload files"
+            />
+          <h3 className="text-lg font-medium text-gray-900 mb-2 font-heading">
+            {mode === 'single' ? 'Upload your design' : `Upload design ${images.length + 1}`}
           </h3>
           <p className="text-gray-600 mb-4">
             {isDragActive
               ? 'Drop the image here...'
-              : 'Drag and drop an image here, or click to select'}
+              : 'Drag and drop an image here, or click to select. Do not include any sensitive data.'}
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-rh-text-secondary">
             Supports: JPEG, PNG, GIF, BMP, WebP (max 10MB)
           </p>
         </div>
@@ -152,9 +158,9 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
       {/* Image Previews */}
       {images.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className={`gap-4 ${mode === 'single' && images.length === 1 ? 'flex justify-center' : 'grid md:grid-cols-2'}`}>
           {images.map((image, index) => (
-            <div key={index} className="relative bg-white rounded-lg shadow-md overflow-hidden">
+            <div key={index} className={`relative bg-white rounded-lg shadow-md overflow-hidden ${mode === 'single' && images.length === 1 ? 'max-w-md w-full' : ''}`}>
               <div className="aspect-video bg-gray-100 flex items-center justify-center">
                 <img
                   src={image.preview}
@@ -165,17 +171,26 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
               <div className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <ImageIcon className="h-4 w-4 text-gray-500 mr-2" />
+                    <RhIcon 
+            icon={getRedHatIcon('Image')} 
+            size="small" 
+            className="text-gray-500 mr-2" 
+            accessibleLabel="Image"
+          />
                     <span className="text-sm font-medium text-gray-700">
                       {mode === 'comparison' ? `Design ${String.fromCharCode(65 + index)}` : 'Design'}
                     </span>
                   </div>
                   <button
                     onClick={() => removeImage(index)}
-                    className="p-1 text-red-500 hover:text-red-700 transition-colors"
+                    className="p-1 text-rh-status-danger hover:text-rh-status-danger transition-colors"
                     disabled={isAnalyzing}
                   >
-                    <X className="h-4 w-4" />
+                    <RhIcon 
+              icon={getRedHatIcon('X')} 
+              size="small" 
+              accessibleLabel="Remove image"
+            />
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-1 truncate">
@@ -189,11 +204,16 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
-          <AlertCircle className="h-5 w-5 text-red-500 mr-3 mt-0.5 flex-shrink-0" />
+        <div className="bg-rh-status-danger/10 border border-rh-status-danger/30 rounded-lg p-4 flex items-start">
+          <RhIcon 
+          icon={getRedHatIcon('AlertCircle')} 
+          size="medium" 
+                      className="text-rh-status-danger mr-3 mt-0.5 flex-shrink-0" 
+          accessibleLabel="Error"
+        />
           <div>
-            <h4 className="text-red-800 font-medium">Error</h4>
-            <p className="text-red-700 text-sm mt-1">{error}</p>
+            <h4 className="text-rh-status-danger font-medium font-heading">Error</h4>
+            <p className="text-rh-status-danger text-sm mt-1">{error}</p>
           </div>
         </div>
       )}
@@ -206,15 +226,15 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             disabled={!canAnalyze() || isAnalyzing}
             className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 ${
               canAnalyze() && !isAnalyzing
-                ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg'
+                ? 'bg-rh-accent-base text-white hover:bg-rh-interactive-blue-hover shadow-md hover:shadow-lg'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
             {isAnalyzing
               ? 'Analyzing...'
               : mode === 'single'
-              ? 'Analyze Design'
-              : 'Compare Designs'}
+              ? 'Analyze design'
+              : 'Compare designs'}
           </button>
         </div>
       )}
