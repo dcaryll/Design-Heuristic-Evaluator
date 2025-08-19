@@ -17,7 +17,11 @@ app = FastAPI(title="Design Evaluator API", version="1.0.0")
 # CORS middleware for frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React dev server
+    allow_origins=[
+        "http://localhost:3000",  # React dev server
+        "https://design-heuristics.netlify.app",  # Original Netlify site
+        "https://design-heuristics-check.netlify.app",  # New GitHub-connected Netlify site
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
