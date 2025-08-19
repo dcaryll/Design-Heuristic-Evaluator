@@ -34,6 +34,43 @@ app.add_middleware(
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+class DesignAnalysisRequest(BaseModel):
+    image_data: str
+    analysis_type: str = "heuristic"  # "heuristic" or "comparison"
+    comparison_image: Optional[str] = None
+
+class URLAnalysisRequest(BaseModel):
+    url: str
+    analysis_type: str = "heuristic"  # "heuristic" or "comparison"
+    comparison_url: Optional[str] = None
+
+class DesignAnalysisResponse(BaseModel):
+    overall_score: float
+    heuristic_scores: dict
+    heuristic_reasoning: dict
+    recommendations: List[str]
+    strengths: List[str]
+    areas_for_improvement: List[str]
+    summary: str
+
+class DesignBreakdown(BaseModel):
+    overall_score: float
+    heuristic_scores: dict
+    heuristic_reasoning: dict
+    recommendations: List[str]
+    strengths: List[str]
+    areas_for_improvement: List[str]
+    summary: str
+
+class ComparisonResponse(BaseModel):
+    winner: str
+    reasoning: str
+    design_a_score: float
+    design_b_score: float
+    recommendations: List[str]
+    design_a_analysis: DesignBreakdown
+    design_b_analysis: DesignBreakdown
+
 async def capture_screenshot(url: str) -> str:
     """
     Capture a screenshot of the given URL and return it as base64 string
@@ -118,41 +155,6 @@ async def analyze_image_base64(image_base64: str) -> DesignAnalysisResponse:
             )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-
-class DesignAnalysisRequest(BaseModel):
-    image_data: str
-    analysis_type: str = "heuristic"  # "heuristic" or "comparison"
-    comparison_image: Optional[str] = None
-
-class URLAnalysisRequest(BaseModel):
-    url: str
-    analysis_type: str = "heuristic"  # "heuristic" or "comparison"
-    comparison_url: Optional[str] = None
-
-class DesignAnalysisResponse(BaseModel):
-    overall_score: float
-    heuristic_scores: dict
-    heuristic_reasoning: dict
-    recommendations: List[str]
-    strengths: List[str]
-    areas_for_improvement: List[str]
-    summary: str
-
-class DesignBreakdown(BaseModel):
-    heuristic_scores: dict
-    heuristic_reasoning: dict
-    strengths: List[str]
-    areas_for_improvement: List[str]
-    summary: str
-
-class ComparisonResponse(BaseModel):
-    winner: str  # "design_a", "design_b", or "tie"
-    reasoning: str
-    design_a_score: float
-    design_b_score: float
-    recommendations: List[str]
-    design_a_analysis: Optional[DesignBreakdown] = None
-    design_b_analysis: Optional[DesignBreakdown] = None
 
 # Comprehensive UX & Design System Evaluation Framework
 # Nielsen's 10 Usability Heuristics + Modern Design System Principles
@@ -551,20 +553,24 @@ async def compare_designs(
 async def analyze_url(request: URLAnalysisRequest):
     """Analyze design from a URL by taking a screenshot"""
     try:
-        # Capture screenshot of the URL
-        screenshot_base64 = await capture_screenshot(request.url)
+        print(f"DEBUG: Starting URL analysis for: {request.url}")
         
-        # Create a design analysis request with the screenshot
-        analysis_request = DesignAnalysisRequest(
-            image_data=screenshot_base64,
-            analysis_type="heuristic"
-        )
+        # Capture screenshot of the URL
+        print(f"DEBUG: Capturing screenshot...")
+        screenshot_base64 = await capture_screenshot(request.url)
+        print(f"DEBUG: Screenshot captured, length: {len(screenshot_base64)}")
         
         # Use core analysis function
-        return await analyze_image_base64(screenshot_base64)
+        print(f"DEBUG: Starting AI analysis...")
+        result = await analyze_image_base64(screenshot_base64)
+        print(f"DEBUG: Analysis completed successfully")
+        
+        return result
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"URL analysis failed: {str(e)}")
+        error_msg = f"URL analysis failed: {type(e).__name__}: {str(e)}"
+        print(f"ERROR: {error_msg}")
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @app.post("/compare-urls", response_model=ComparisonResponse)
 async def compare_urls(request: URLAnalysisRequest):

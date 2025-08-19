@@ -24,6 +24,9 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 }) => {
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [error, setError] = useState<string>('');
+  const [inputMode, setInputMode] = useState<'upload' | 'url'>('upload');
+  const [url, setUrl] = useState<string>('');
+  const [comparisonUrl, setComparisonUrl] = useState<string>('');
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setError('');
@@ -67,9 +70,15 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   };
 
   const canAnalyze = () => {
-    if (mode === 'single') return images.length === 1;
-    if (mode === 'comparison') return images.length === 2;
-    return false;
+    if (inputMode === 'url') {
+      if (mode === 'single') return url.trim() !== '';
+      if (mode === 'comparison') return url.trim() !== '' && comparisonUrl.trim() !== '';
+      return false;
+    } else {
+      if (mode === 'single') return images.length === 1;
+      if (mode === 'comparison') return images.length === 2;
+      return false;
+    }
   };
 
   const handleAnalysis = async () => {
@@ -79,31 +88,60 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     setError('');
 
     try {
-      if (mode === 'single') {
-        const formData = new FormData();
-        formData.append('file', images[0].file);
+      if (inputMode === 'url') {
+        // URL Analysis
+        if (mode === 'single') {
+          const response = await axios.post(`${API_BASE_URL}/analyze-url`, {
+            url: url.trim()
+          }, {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            timeout: 120000, // 120 second timeout for URL analysis (needs time to load page)
+          });
 
-        const response = await axios.post(`${API_BASE_URL}/analyze`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          timeout: 60000, // 60 second timeout
-        });
+          onAnalysisComplete(response.data, []);
+        } else {
+          const response = await axios.post(`${API_BASE_URL}/compare-urls`, {
+            url: url.trim(),
+            comparison_url: comparisonUrl.trim()
+          }, {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            timeout: 180000, // 180 second timeout for URL comparison
+          });
 
-        onAnalysisComplete(response.data, images);
+          onComparisonComplete(response.data, []);
+        }
       } else {
-        const formData = new FormData();
-        formData.append('design_a', images[0].file);
-        formData.append('design_b', images[1].file);
+        // Image Upload Analysis
+        if (mode === 'single') {
+          const formData = new FormData();
+          formData.append('file', images[0].file);
 
-        const response = await axios.post(`${API_BASE_URL}/compare`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          timeout: 60000, // 60 second timeout
-        });
+          const response = await axios.post(`${API_BASE_URL}/analyze`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+            timeout: 60000, // 60 second timeout
+          });
 
-        onComparisonComplete(response.data, images);
+          onAnalysisComplete(response.data, images);
+        } else {
+          const formData = new FormData();
+          formData.append('design_a', images[0].file);
+          formData.append('design_b', images[1].file);
+
+          const response = await axios.post(`${API_BASE_URL}/compare`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+            timeout: 60000, // 60 second timeout
+          });
+
+          onComparisonComplete(response.data, images);
+        }
       }
     } catch (err: any) {
       let errorMessage = 'Analysis failed. Please try again.';
@@ -125,8 +163,84 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Input Mode Toggle */}
+      <div className="flex justify-center">
+        <div className="flex bg-gray-100 rounded-lg p-1">
+          <button
+            onClick={() => setInputMode('upload')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+              inputMode === 'upload'
+                ? 'bg-white text-rh-text-primary shadow'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <span className="flex items-center">
+              <RhIcon 
+                icon={getRedHatIcon('Upload')} 
+                size="small" 
+                className="mr-2" 
+                accessibleLabel="Upload"
+              />
+              Upload Images
+            </span>
+          </button>
+          <button
+            onClick={() => setInputMode('url')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+              inputMode === 'url'
+                ? 'bg-white text-rh-text-primary shadow'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <span className="flex items-center">
+              <RhIcon 
+                icon={getRedHatIcon('external-link')} 
+                size="small" 
+                className="mr-2" 
+                accessibleLabel="URL"
+              />
+              Analyze URL
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* URL Input Section */}
+      {inputMode === 'url' && (
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="url" className="block text-sm font-medium text-gray-700 mb-2">
+              {mode === 'single' ? 'Website URL to analyze' : 'First website URL'}
+            </label>
+            <input
+              id="url"
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-rh-accent-base focus:border-rh-accent-base"
+            />
+          </div>
+          {mode === 'comparison' && (
+            <div>
+              <label htmlFor="comparison-url" className="block text-sm font-medium text-gray-700 mb-2">
+                Second website URL to compare
+              </label>
+              <input
+                id="comparison-url"
+                type="url"
+                value={comparisonUrl}
+                onChange={(e) => setComparisonUrl(e.target.value)}
+                placeholder="https://another-example.com"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-rh-accent-base focus:border-rh-accent-base"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Upload Area */}
-      {needsMoreImages && (
+      {inputMode === 'upload' && needsMoreImages && (
         <div
           {...getRootProps()}
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200 ${
@@ -157,7 +271,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
       )}
 
       {/* Image Previews */}
-      {images.length > 0 && (
+      {inputMode === 'upload' && images.length > 0 && (
         <div className={`gap-4 ${mode === 'single' && images.length === 1 ? 'flex justify-center' : 'grid md:grid-cols-2'}`}>
           {images.map((image, index) => (
             <div key={index} className={`relative bg-white rounded-lg shadow-md overflow-hidden ${mode === 'single' && images.length === 1 ? 'max-w-md w-full' : ''}`}>
@@ -219,7 +333,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
       )}
 
       {/* Analysis Button */}
-      {images.length > 0 && (
+      {((inputMode === 'upload' && images.length > 0) || (inputMode === 'url' && (url.trim() !== '' || comparisonUrl.trim() !== ''))) && (
         <div className="flex justify-center">
           <button
             onClick={handleAnalysis}
@@ -231,10 +345,10 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             }`}
           >
             {isAnalyzing
-              ? 'Analyzing...'
-              : mode === 'single'
-              ? 'Analyze design'
-              : 'Compare designs'}
+              ? inputMode === 'url' ? 'Capturing and analyzing...' : 'Analyzing...'
+              : inputMode === 'url' 
+                ? (mode === 'single' ? 'Analyze website' : 'Compare websites')
+                : (mode === 'single' ? 'Analyze design' : 'Compare designs')}
           </button>
         </div>
       )}
