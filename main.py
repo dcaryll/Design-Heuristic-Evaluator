@@ -140,7 +140,9 @@ def create_heuristic_prompt() -> str:
     design_system_list = "\n".join([f"- {key.replace('_', ' ').title()}: {UX_HEURISTICS[key]}" for key in design_system_heuristics])
     
     return f"""
-    As a UX expert, analyze this design image using Jakob Nielsen's 10 usability heuristics and modern design system principles:
+    As a UX expert, analyze this design image using Jakob Nielsen's 10 usability heuristics and modern design system principles.
+
+    CRITICAL: Your analysis must be based on SPECIFIC VISUAL ELEMENTS you can see in the image. Reference actual UI components, colors, text, buttons, layout elements, spacing, and design patterns that are visible.
 
     CLASSIC USABILITY HEURISTICS (Nielsen's):
     {nielsen_list}
@@ -148,13 +150,19 @@ def create_heuristic_prompt() -> str:
     DESIGN SYSTEM EVALUATION CRITERIA (inspired by modern design systems like Red Hat's):
     {design_system_list}
 
+    ANALYSIS APPROACH - For each heuristic, you MUST:
+    1. OBSERVE: Identify specific visual elements in the image (buttons, text, colors, spacing, icons, navigation, etc.)
+    2. EVALUATE: Assess how these visible elements perform against the heuristic
+    3. CITE: Reference the actual UI components you're evaluating in your reasoning
+    4. SCORE: Provide a score based on what you can actually see
+
     DESIGN SYSTEM SPECIFIC GUIDANCE:
-    - Color Accessibility Usage: Evaluate color contrast (WCAG AA/AAA), semantic color usage, and meaningful color communication
-    - Typography Hierarchy: Assess text scale, weight, spacing, and readability across the hierarchy
-    - Design Token Consistency: Look for consistent spacing, sizing, and visual patterns that suggest systematic design
-    - Brand Voice Expression: Evaluate how well the design communicates brand personality and values
-    - Responsive Adaptability: Consider mobile-first design, flexible layouts, and cross-device usability
-    - Interaction Feedback: Assess button states, hover effects, loading indicators, and user action feedback
+    - Color Accessibility Usage: Examine visible color contrast, identify color choices you can see, assess semantic color usage
+    - Typography Hierarchy: Analyze visible text sizes, weights, spacing, and hierarchy in the actual design
+    - Design Token Consistency: Look for consistent spacing, sizing, and visual patterns visible in the interface
+    - Brand Voice Expression: Evaluate how the visible design elements communicate brand personality
+    - Responsive Adaptability: Assess layout structure, spacing, and element sizing visible in the design
+    - Interaction Feedback: Examine visible button states, interactive elements, and feedback mechanisms
 
     IMPORTANT: Respond with ONLY valid JSON. Do not include any explanatory text before or after the JSON.
 
@@ -180,22 +188,22 @@ def create_heuristic_prompt() -> str:
             "interaction_feedback": 8.0
         }},
         "heuristic_reasoning": {{
-            "visibility_of_system_status": "The interface clearly shows loading states and system feedback, but could improve progress indicators for longer operations.",
-            "match_system_real_world": "Uses familiar icons and conventions, though some terminology could be more user-friendly.",
-            "user_control_freedom": "Provides clear navigation and back buttons, but lacks undo functionality in some areas.",
-            "consistency_standards": "Excellent consistency in color scheme, typography, and button styles throughout the interface.",
-            "error_prevention": "Good form validation, but could benefit from better input constraints and confirmation dialogs.",
-            "recognition_rather_than_recall": "Icons are well-labeled and navigation is intuitive, reducing memory load effectively.",
-            "flexibility_efficiency": "Limited keyboard shortcuts and customization options for power users.",
-            "aesthetic_minimalist_design": "Clean, uncluttered design with excellent use of whitespace and visual hierarchy.",
-            "error_recovery": "Error messages are present but could be more descriptive and solution-oriented.",
-            "help_documentation": "Limited help text and documentation visible in the interface.",
-            "color_accessibility_usage": "Colors meet WCAG contrast requirements and use semantic meaning, though some decorative colors could be more purposeful.",
-            "typography_hierarchy": "Text hierarchy is clear with good scale progression, but could benefit from better line height consistency.",
-            "design_token_consistency": "Shows consistent use of spacing and sizing patterns, indicating good token-based approach to design.",
-            "brand_voice_expression": "Design feels cohesive and professional, though could express more distinctive brand personality.",
-            "responsive_adaptability": "Layout appears designed for desktop, but mobile considerations and breakpoint handling are unclear.",
-            "interaction_feedback": "Buttons and interactive elements provide clear visual states and feedback mechanisms."
+            "visibility_of_system_status": "The blue progress bar at 45% completion and 'Processing...' text in the top-right clearly indicate current system status, though the upload button lacks visual feedback during file selection.",
+            "match_system_real_world": "The shopping cart icon and 'Add to Cart' button text use familiar e-commerce conventions, but the 'Finalize Purchase' label could be clearer than this technical term.",
+            "user_control_freedom": "The visible breadcrumb navigation (Home > Products > Details) and blue 'Back to Results' button provide clear escape routes, but no visible undo option after adding items to cart.",
+            "consistency_standards": "All buttons use the same blue (#2563eb) background with white text and 8px border radius, and spacing between elements follows a consistent 16px grid pattern.",
+            "error_prevention": "The form shows red asterisks (*) for required fields and the grayed-out 'Submit' button prevents submission, but lacks input format hints for the phone number field.",
+            "recognition_rather_than_recall": "Icons include text labels (like 'Search' next to the magnifying glass) and the navigation menu shows current page highlighting, reducing memory load.",
+            "flexibility_efficiency": "The interface shows only basic interaction patterns with no visible keyboard shortcuts or advanced features for experienced users.",
+            "aesthetic_minimalist_design": "Clean white background with generous 24px margins, limited to 3 colors (blue, gray, white), and clear visual hierarchy from large heading to smaller body text.",
+            "error_recovery": "A red error message reads 'Invalid email format' but doesn't suggest the correct format or provide examples of valid emails.",
+            "help_documentation": "No visible help text, tooltips, or '?' icons are present in the interface to guide users.",
+            "color_accessibility_usage": "The blue buttons (#2563eb) on white background provide good contrast, and red is used semantically for errors, though gray text appears quite light against white.",
+            "typography_hierarchy": "Clear hierarchy with 24px heading, 16px body text, and 12px captions, all using consistent line spacing, though some secondary text could be larger for better readability.",
+            "design_token_consistency": "Consistent 8px border radius on all buttons and input fields, 16px padding throughout, and uniform color palette suggests systematic design token usage.",
+            "brand_voice_expression": "The clean, minimal aesthetic with blue accent color suggests a professional, trustworthy brand, though lacks distinctive personality beyond generic corporate styling.",
+            "responsive_adaptability": "The centered 400px-wide layout with fixed margins suggests desktop-first design, with no visible mobile navigation patterns or flexible spacing.",
+            "interaction_feedback": "Buttons show darker blue hover states and the selected tab has a blue underline, providing clear interactive feedback."
         }},
         "recommendations": ["Improve error messaging clarity", "Add loading states for better feedback", "Consider mobile-first responsive design"],
         "strengths": ["Clean visual hierarchy", "Consistent color scheme", "Clear navigation structure"],
@@ -207,12 +215,15 @@ def create_heuristic_prompt() -> str:
     - Overall score: 0-100 (integer)
     - Heuristic scores: 0-10 (decimal, one decimal place)
     - Heuristic reasoning: 1-2 sentences per heuristic explaining WHY that specific score was given
-    - Include 3-5 specific recommendations
-    - Include 3-4 key strengths
-    - Include 3-4 areas for improvement
-    - Summary should be 1-2 sentences
+    - CRITICAL: Each reasoning MUST reference specific visual elements you observe (colors, text, buttons, spacing, icons, layouts, etc.)
+    - DO NOT use generic terms - describe actual UI components you can see
+    - Include specific measurements, colors, text content, and UI elements when possible
+    - Include 3-5 specific recommendations based on observed issues
+    - Include 3-4 key strengths citing specific visual elements
+    - Include 3-4 areas for improvement referencing specific components
+    - Summary should be 1-2 sentences about the overall visual design
     - Be specific and actionable in your recommendations
-    - Focus on what you can actually see in the design image
+    - Base everything on what you can actually see in the design image
     - Consider accessibility, mobile responsiveness, and modern UX patterns
     - Return ONLY the JSON object, no additional text
     """
@@ -297,6 +308,7 @@ async def analyze_design(file: UploadFile = File(...)):
             return DesignAnalysisResponse(
                 overall_score=75.0,
                 heuristic_scores={key: 7.5 for key in UX_HEURISTICS.keys()},
+                heuristic_reasoning={key: "Analysis parsing failed - generic score provided" for key in UX_HEURISTICS.keys()},
                 recommendations=[f"JSON parsing failed: {str(e)}", "The AI provided an analysis but in an unexpected format"],
                 strengths=["AI response received but parsing failed"],
                 areas_for_improvement=["Please try uploading the image again"],
