@@ -223,7 +223,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ analysis, images }) => 
                   {/* AI-specific reasoning for this design - now second */}
                   {analysis.heuristic_reasoning && analysis.heuristic_reasoning[key] && (
                     <div className={`p-4 ${getAnalysisBgColor(score)} border-2 ${getAnalysisBorderColor(score)} rounded-lg shadow-sm`}>
-                      <h5 className={`font-medium ${getAnalysisTextColor(score)} mb-2`}>Analysis for your design:</h5>
+                      <h5 className={`font-medium ${getAnalysisTextColor(score)} mb-2`}>Specific analysis of your design elements:</h5>
                       <p className={`text-sm font-bold ${getAnalysisTextColor(score)} leading-relaxed`}>
                         {analysis.heuristic_reasoning[key]}
                       </p>
