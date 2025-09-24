@@ -80,32 +80,71 @@ async def capture_screenshot(url: str) -> str:
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         
+        print(f"DEBUG: Attempting to capture screenshot for: {url}")
+        
         async with async_playwright() as p:
-            # Launch browser in headless mode
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
+            # Try Firefox first, then fallback to Chromium
+            try:
+                # Try Firefox browser
+                browser = await p.firefox.launch(headless=True)
+                print("DEBUG: Using Firefox browser")
+            except Exception as firefox_error:
+                print(f"DEBUG: Firefox failed ({firefox_error}), trying Chromium with different args...")
+                # Fallback to Chromium with more permissive settings
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=[
+                        '--no-sandbox',
+                        '--disable-setuid-sandbox',
+                        '--disable-dev-shm-usage',
+                        '--disable-gpu',
+                        '--no-first-run',
+                        '--disable-extensions',
+                        '--disable-default-apps',
+                        '--disable-web-security',
+                        '--disable-features=VizDisplayCompositor',
+                        '--ignore-certificate-errors',
+                        '--allow-running-insecure-content'
+                    ]
+                )
             
-            # Set viewport size for consistent screenshots
-            await page.set_viewport_size({"width": 1200, "height": 800})
-            
-            # Navigate to URL with timeout
-            await page.goto(url, wait_until="networkidle", timeout=30000)
-            
-            # Wait a bit for dynamic content to load
-            await page.wait_for_timeout(2000)
-            
-            # Take full page screenshot
-            screenshot_bytes = await page.screenshot(full_page=True, type='png')
-            
-            # Close browser
-            await browser.close()
-            
-            # Convert to base64
-            screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
-            return screenshot_base64
+            try:
+                page = await browser.new_page()
+                
+                # Set user agent to avoid bot detection
+                await page.set_extra_http_headers({
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                })
+                
+                # Set viewport size for consistent screenshots
+                await page.set_viewport_size({"width": 1200, "height": 800})
+                
+                print(f"DEBUG: Navigating to URL...")
+                # Navigate to URL with shorter timeout and domcontentloaded
+                await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                
+                print(f"DEBUG: Waiting for page to stabilize...")
+                # Wait a bit for dynamic content to load
+                await page.wait_for_timeout(3000)
+                
+                print(f"DEBUG: Taking screenshot...")
+                # Take screenshot (not full page to avoid issues)
+                screenshot_bytes = await page.screenshot(type='png')
+                
+                print(f"DEBUG: Screenshot captured successfully, size: {len(screenshot_bytes)} bytes")
+                
+                # Convert to base64
+                screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+                return screenshot_base64
+                
+            finally:
+                # Ensure browser is always closed
+                await browser.close()
             
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to capture screenshot: {str(e)}")
+        error_msg = f"Failed to capture screenshot: {type(e).__name__}: {str(e)}"
+        print(f"ERROR: {error_msg}")
+        raise HTTPException(status_code=400, detail=error_msg)
 
 def extract_json_from_response(text: str) -> dict:
     """Extract JSON from AI response, handling markdown code blocks and extra text"""
@@ -251,18 +290,32 @@ def create_heuristic_prompt() -> str:
     {design_system_list}
 
     ANALYSIS APPROACH - For each heuristic, you MUST:
-    1. OBSERVE: Identify specific visual elements in the image (buttons, text, colors, spacing, icons, navigation, etc.)
-    2. EVALUATE: Assess how these visible elements perform against the heuristic
-    3. CITE: Reference the actual UI components you're evaluating in your reasoning
-    4. SCORE: Provide a score based on what you can actually see
+    1. OBSERVE: Identify SPECIFIC visual elements in the image (exact button text, specific color codes/names, pixel measurements, font sizes, spacing values, etc.)
+    2. EVALUATE: Assess how these precise visible elements perform against the heuristic
+    3. CITE: Reference the EXACT UI components, text content, colors, and measurements you're evaluating
+    4. SCORE: Provide a score based on what you can actually see and measure
+
+    MANDATORY SPECIFICITY REQUIREMENTS:
+    - ALWAYS mention specific text you can read (button labels, headings, body text, etc.)
+    - ALWAYS describe actual colors you see (e.g., "blue #2563eb", "light gray background", "white text")
+    - ALWAYS reference specific UI components (e.g., "the red 'Submit' button", "the navigation menu with 4 items", "the search input field in the top-right")
+    - ALWAYS mention measurable elements (spacing, sizes, alignment you can observe)
+    - NEVER use generic phrases like "buttons" - say "the green 'Get Started' button" or "the three action buttons in the footer"
 
     DESIGN SYSTEM SPECIFIC GUIDANCE:
-    - Color Accessibility Usage: Examine visible color contrast, identify color choices you can see, assess semantic color usage
-    - Typography Hierarchy: Analyze visible text sizes, weights, spacing, and hierarchy in the actual design
-    - Design Token Consistency: Look for consistent spacing, sizing, and visual patterns visible in the interface
-    - Brand Voice Expression: Evaluate how the visible design elements communicate brand personality
-    - Responsive Adaptability: Assess layout structure, spacing, and element sizing visible in the design
-    - Interaction Feedback: Examine visible button states, interactive elements, and feedback mechanisms
+    - Color Accessibility Usage: Name specific colors you see, describe exact contrast relationships, identify which text/background combinations you're analyzing
+    - Typography Hierarchy: Mention specific text content, describe exact size relationships you observe, reference particular headings or paragraphs
+    - Design Token Consistency: Point to specific spacing measurements, identical button styles, repeated color usage you can see
+    - Brand Voice Expression: Reference specific design choices visible (logo, color scheme, typography style, imagery) and what they communicate
+    - Responsive Adaptability: Describe the actual layout structure, specific element positioning, and spacing patterns you observe
+    - Interaction Feedback: Name specific interactive elements (buttons, links, form fields) and their visual states you can see
+
+    EXAMPLE OF REQUIRED SPECIFICITY:
+    Instead of: "The buttons have good contrast"
+    Write: "The blue 'Sign Up' button (#2563eb) on white background provides strong contrast, while the 'Learn More' link in gray (#6b7280) may be harder to read"
+
+    Instead of: "Good visual hierarchy"
+    Write: "The main heading 'Welcome to Our Platform' uses large bold text (appears ~24px), followed by a descriptive paragraph in regular weight (~16px), creating clear information hierarchy"
 
     IMPORTANT: Respond with ONLY valid JSON. Do not include any explanatory text before or after the JSON.
 
@@ -288,22 +341,22 @@ def create_heuristic_prompt() -> str:
             "interaction_feedback": 8.0
         }},
         "heuristic_reasoning": {{
-            "visibility_of_system_status": "The blue progress bar at 45% completion and 'Processing...' text in the top-right clearly indicate current system status, though the upload button lacks visual feedback during file selection.",
-            "match_system_real_world": "The shopping cart icon and 'Add to Cart' button text use familiar e-commerce conventions, but the 'Finalize Purchase' label could be clearer than this technical term.",
-            "user_control_freedom": "The visible breadcrumb navigation (Home > Products > Details) and blue 'Back to Results' button provide clear escape routes, but no visible undo option after adding items to cart.",
-            "consistency_standards": "All buttons use the same blue (#2563eb) background with white text and 8px border radius, and spacing between elements follows a consistent 16px grid pattern.",
-            "error_prevention": "The form shows red asterisks (*) for required fields and the grayed-out 'Submit' button prevents submission, but lacks input format hints for the phone number field.",
-            "recognition_rather_than_recall": "Icons include text labels (like 'Search' next to the magnifying glass) and the navigation menu shows current page highlighting, reducing memory load.",
-            "flexibility_efficiency": "The interface shows only basic interaction patterns with no visible keyboard shortcuts or advanced features for experienced users.",
-            "aesthetic_minimalist_design": "Clean white background with generous 24px margins, limited to 3 colors (blue, gray, white), and clear visual hierarchy from large heading to smaller body text.",
-            "error_recovery": "A red error message reads 'Invalid email format' but doesn't suggest the correct format or provide examples of valid emails.",
-            "help_documentation": "No visible help text, tooltips, or '?' icons are present in the interface to guide users.",
-            "color_accessibility_usage": "The blue buttons (#2563eb) on white background provide good contrast, and red is used semantically for errors, though gray text appears quite light against white.",
-            "typography_hierarchy": "Clear hierarchy with 24px heading, 16px body text, and 12px captions, all using consistent line spacing, though some secondary text could be larger for better readability.",
-            "design_token_consistency": "Consistent 8px border radius on all buttons and input fields, 16px padding throughout, and uniform color palette suggests systematic design token usage.",
-            "brand_voice_expression": "The clean, minimal aesthetic with blue accent color suggests a professional, trustworthy brand, though lacks distinctive personality beyond generic corporate styling.",
-            "responsive_adaptability": "The centered 400px-wide layout with fixed margins suggests desktop-first design, with no visible mobile navigation patterns or flexible spacing.",
-            "interaction_feedback": "Buttons show darker blue hover states and the selected tab has a blue underline, providing clear interactive feedback."
+            "visibility_of_system_status": "I can see a blue progress bar showing 45% completion with 'Processing your request...' text in the header area, which clearly communicates current status. However, the 'Upload Files' button in the main content area doesn't show any loading state or feedback during file selection.",
+            "match_system_real_world": "The interface uses familiar conventions like the shopping cart icon (🛒) next to 'Add to Cart' button text, and the search magnifying glass icon in the top navigation. However, the 'Finalize Transaction' button uses technical language instead of the more common 'Complete Purchase' or 'Place Order'.",
+            "user_control_freedom": "I can see a breadcrumb navigation trail reading 'Home > Products > Widget Details' and a blue 'Back to Search Results' button in the top-left corner, providing clear escape routes. However, there's no visible 'Undo' option after clicking 'Add to Cart'.",
+            "consistency_standards": "All primary buttons (like 'Get Started', 'Learn More', 'Contact Us') use identical styling: blue background (#2563eb), white text, 8px rounded corners, and 12px padding. The spacing between sections follows a consistent 24px grid pattern throughout.",
+            "error_prevention": "The contact form shows red asterisks (*) next to 'Name' and 'Email' fields marking them as required, and the 'Send Message' button is grayed out until fields are completed. However, the phone number field lacks format hints like '(555) 123-4567'.",
+            "recognition_rather_than_recall": "Each navigation icon includes descriptive text labels: 'Home', 'About', 'Services', 'Contact'. The current page 'Services' is highlighted with a blue underline, helping users recognize their location without memorizing the navigation structure.",
+            "flexibility_efficiency": "The interface appears designed for basic users with no visible keyboard shortcuts, advanced search filters, or bulk actions. Power users would need to complete tasks through the standard click-through interface.",
+            "aesthetic_minimalist_design": "The design uses a clean white background (#ffffff) with substantial 32px margins, limiting the color palette to blue (#2563eb), gray (#6b7280), and white. The main heading 'Transform Your Business' is prominently displayed with minimal competing elements.",
+            "error_recovery": "I can see a red error message stating 'Please enter a valid email address' below the email field, but it doesn't provide examples of correct format or suggest fixes like 'Try: name@company.com'.",
+            "help_documentation": "There are no visible help tooltips, '?' information icons, or 'Need Help?' links anywhere in the interface to assist users who might need guidance.",
+            "color_accessibility_usage": "The blue 'Sign Up' button (#2563eb) on white background meets WCAG contrast standards, and red is used consistently for error states. However, the light gray placeholder text (#9ca3af) in form fields appears quite faint against the white background.",
+            "typography_hierarchy": "The page title 'Welcome to Our Platform' uses bold 28px text, followed by the subtitle 'Build amazing things' in regular 18px, and body paragraphs in 16px. This creates clear information hierarchy, though some secondary labels could be slightly larger for better readability.",
+            "design_token_consistency": "All interactive elements share consistent properties: 8px border radius for buttons and input fields, 16px internal padding, and identical hover effects (10% opacity change). The spacing follows an 8px grid system throughout.",
+            "brand_voice_expression": "The prominent blue color (#2563eb), clean sans-serif typography, and professional photography communicate reliability and trustworthiness. The tone appears corporate and formal rather than playful or innovative.",
+            "responsive_adaptability": "The main content is contained within a fixed 1200px wide container with large side margins, suggesting a desktop-first approach. I don't see mobile-specific navigation patterns like hamburger menus or touch-optimized button sizes.",
+            "interaction_feedback": "The 'Get Started' button shows a darker blue shade (#1d4ed8) on hover, and form fields display a blue border when focused. The 'Services' tab in the navigation shows an active state with blue highlighting and underline."
         }},
         "recommendations": ["Improve error messaging clarity", "Add loading states for better feedback", "Consider mobile-first responsive design"],
         "strengths": ["Clean visual hierarchy", "Consistent color scheme", "Clear navigation structure"],
@@ -518,8 +571,10 @@ async def compare_designs(
         
         if analysis_a:
             design_a_breakdown = {
+                "overall_score": analysis_a.get("overall_score", score_a),
                 "heuristic_scores": analysis_a.get("heuristic_scores", {}),
                 "heuristic_reasoning": analysis_a.get("heuristic_reasoning", {}),
+                "recommendations": analysis_a.get("recommendations", []),
                 "strengths": analysis_a.get("strengths", []),
                 "areas_for_improvement": analysis_a.get("areas_for_improvement", []),
                 "summary": analysis_a.get("summary", "Analysis completed.")
@@ -527,8 +582,10 @@ async def compare_designs(
         
         if analysis_b:
             design_b_breakdown = {
+                "overall_score": analysis_b.get("overall_score", score_b),
                 "heuristic_scores": analysis_b.get("heuristic_scores", {}),
                 "heuristic_reasoning": analysis_b.get("heuristic_reasoning", {}),
+                "recommendations": analysis_b.get("recommendations", []),
                 "strengths": analysis_b.get("strengths", []),
                 "areas_for_improvement": analysis_b.get("areas_for_improvement", []),
                 "summary": analysis_b.get("summary", "Analysis completed.")
@@ -600,14 +657,35 @@ async def compare_urls(request: URLAnalysisRequest):
         recommendations.extend(analysis_a.recommendations[:2])
         recommendations.extend(analysis_b.recommendations[:2])
         
+        # Create detailed breakdowns for each design (URL comparison)
+        design_a_breakdown = {
+            "overall_score": analysis_a.overall_score,
+            "heuristic_scores": analysis_a.heuristic_scores,
+            "heuristic_reasoning": analysis_a.heuristic_reasoning,
+            "recommendations": analysis_a.recommendations,
+            "strengths": analysis_a.strengths,
+            "areas_for_improvement": analysis_a.areas_for_improvement,
+            "summary": analysis_a.summary
+        }
+        
+        design_b_breakdown = {
+            "overall_score": analysis_b.overall_score,
+            "heuristic_scores": analysis_b.heuristic_scores,
+            "heuristic_reasoning": analysis_b.heuristic_reasoning,
+            "recommendations": analysis_b.recommendations,
+            "strengths": analysis_b.strengths,
+            "areas_for_improvement": analysis_b.areas_for_improvement,
+            "summary": analysis_b.summary
+        }
+
         comparison_result = {
             "winner": winner,
             "reasoning": reasoning,
             "design_a_score": float(score_a),
             "design_b_score": float(score_b),
             "recommendations": recommendations[:4],
-            "design_a_analysis": analysis_a.dict(),
-            "design_b_analysis": analysis_b.dict()
+            "design_a_analysis": design_a_breakdown,
+            "design_b_analysis": design_b_breakdown
         }
         
         return ComparisonResponse(**comparison_result)

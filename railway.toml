@@ -1,5 +1,6 @@
 [build]
 builder = "nixpacks"
+buildCommand = "cd backend && pip install -r requirements.txt"
 
 [deploy]
 startCommand = "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
@@ -9,3 +10,4 @@ restartPolicyType = "always"
 
 [build.env]
 NIXPACKS_PYTHON_VERSION = "3.9"
+NIXPACKS_BUILD_CMD = "cd backend && pip install -r requirements.txt"
